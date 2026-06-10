@@ -124,6 +124,9 @@ jobs:
 
           COPY . .
 
+          ENV IS_CI=true
+          ENV HUSKY=0
+
           RUN pnpm install --frozen-lockfile
 
           RUN pnpm build:antd
