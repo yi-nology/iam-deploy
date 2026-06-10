@@ -1,0 +1,65 @@
+services:
+  iam-server:
+    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-server:latest
+    build:
+      context: https://oauth2:${GITCODE_TOKEN}@gitcode.com/yi-nology/iam-server.git
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  iam-web:
+    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-web:latest
+    build:
+      context: https://oauth2:${GITCODE_TOKEN}@gitcode.com/yi-nology/iam-web.git
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      iam-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: iam
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  redis_data:
