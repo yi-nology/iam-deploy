@@ -63,7 +63,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ inputs.iam_server_ref }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
