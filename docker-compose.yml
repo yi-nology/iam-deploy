@@ -4,6 +4,9 @@ services:
     build:
       context: https://oauth2:${GITCODE_TOKEN}@gitcode.com/yi-nology/iam-server.git
       dockerfile: Dockerfile
+      args:
+        # 传入构建令牌，使 Dockerfile 内 go mod download 能拉取私有依赖(iam-sdk)
+        GITCODE_TOKEN: ${GITCODE_TOKEN}
     ports:
       - "8000:8000"
       - "9000:9000"
