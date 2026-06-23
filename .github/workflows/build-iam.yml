@@ -65,6 +65,7 @@ jobs:
             VERSION=${{ inputs.iam_server_ref }}
             BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
             GIT_COMMIT=${{ github.sha }}
+            GITCODE_TOKEN=${{ secrets.GITCODE_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
