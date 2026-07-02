@@ -1,6 +1,6 @@
 services:
   iam-server:
-    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-server:latest
+    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-server:main
     build:
       context: ../iam-server
       dockerfile: Dockerfile
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   iam-web:
-    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-web:latest
+    image: ghcr.io/${GHCR_OWNER:-yi-nology}/iam-web:main
     build:
       context: ../iam-web
       dockerfile: Dockerfile

@@ -52,6 +52,7 @@ jobs:
           tags: |
             type=raw,value=${{ inputs.iam_server_ref }}
             type=sha,prefix=
+            type=raw,value=latest,enable=${{ inputs.iam_server_ref == 'main' }}
 
       - name: Build & Push iam-server
         uses: docker/build-push-action@v6
@@ -97,6 +98,7 @@ jobs:
           tags: |
             type=raw,value=${{ inputs.iam_web_ref }}
             type=sha,prefix=
+            type=raw,value=latest,enable=${{ inputs.iam_web_ref == 'main' }}
 
       - name: Build & Push iam-web
         uses: docker/build-push-action@v6
