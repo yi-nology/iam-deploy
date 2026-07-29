@@ -20,6 +20,18 @@
 
 每天凌晨 3:00 自动检测 GitCode 仓库是否有新提交，有变更才触发构建，打 `nightly` 标签。
 
+### 部署到 215
+
+使用 `.minimax/skills/deploy-iam/scripts/deploy-from-local.sh`。该脚本先触发 `build-iam.yml`，等待 GHCR 中的 immutable `linux/amd64` 镜像构建完成，再在当前机器拉取并打包镜像，经 SSH 上传到 215，最后在 215 执行 `docker load` 和 Compose 更新。215 不会直接从 GHCR 拉取镜像。
+
+```bash
+GHCR_TOKEN=<read-packages-token> \
+  .minimax/skills/deploy-iam/scripts/deploy-from-local.sh \
+  --ssh-key ~/.ssh/id_ed25519
+```
+
+本机需要 `gh`、Docker、SSH 和 SCP；GitHub CLI 需要能触发并读取 `yi-nology/iam-deploy` 的 Actions run。215 的 SSH host key 必须预先写入本机 `known_hosts`。
+
 ## 需要配置的 Secrets
 
 | Secret | 说明 |

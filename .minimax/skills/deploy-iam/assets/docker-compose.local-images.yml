@@ -1,0 +1,5 @@
+services:
+  iam-server:
+    image: "${IAM_SERVER_IMAGE:?IAM_SERVER_IMAGE must be set}"
+  iam-web:
+    image: "${IAM_WEB_IMAGE:?IAM_WEB_IMAGE must be set}"

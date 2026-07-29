@@ -1,4 +1,5 @@
-name: Build IAM Projects
+name: Build IAM
+run-name: Build IAM (${{ inputs.release_tag || github.run_id }})
 
 on:
   workflow_dispatch:
@@ -11,27 +12,57 @@ on:
         description: 'iam-web branch/tag'
         required: false
         default: 'main'
+      release_tag:
+        description: 'Immutable tag for both images; generated from run ID when omitted'
+        required: false
+        default: ''
       push_images:
-        description: 'Push images to registry'
+        description: 'Push images to GHCR'
         type: boolean
-        default: false
+        default: true
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}
 
 permissions:
+  contents: read
   packages: write
 
 jobs:
+  prepare:
+    name: Prepare release tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Validate release tag
+        id: release
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-iam-${GITHUB_RUN_ID}}"
+          [[ "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$tag" != main && "$tag" != latest ]]
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
   build-server:
     name: Build iam-server
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: Clone iam-server from GitCode
+        id: source
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          SOURCE_REF: ${{ inputs.iam_server_ref }}
         run: |
-          git clone --depth 1 --branch ${{ inputs.iam_server_ref }} \
-            https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/yi-nology/iam-server.git iam-server
+          set -euo pipefail
+          git clone --depth 1 --branch "$SOURCE_REF" \
+            "https://oauth2:${GITCODE_TOKEN}@gitcode.com/yi-nology/iam-server.git" iam-server
+          echo "sha=$(git -C iam-server rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -50,34 +81,43 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/iam-server
           tags: |
-            type=raw,value=${{ inputs.iam_server_ref }}
-            type=sha,prefix=
-            type=raw,value=latest,enable=${{ inputs.iam_server_ref == 'main' }}
+            type=raw,value=${{ needs.prepare.outputs.release_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.source=https://gitcode.com/yi-nology/iam-server
 
-      - name: Build & Push iam-server
+      - name: Build and push iam-server
         uses: docker/build-push-action@v6
         with:
           context: iam-server
+          platforms: linux/amd64
           push: ${{ inputs.push_images }}
           load: ${{ inputs.push_images == false }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ inputs.iam_server_ref }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            GIT_COMMIT=${{ steps.source.outputs.sha }}
             GITCODE_TOKEN=${{ secrets.GITCODE_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   build-web:
     name: Build iam-web
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: Clone iam-web from GitCode
+        id: source
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          SOURCE_REF: ${{ inputs.iam_web_ref }}
         run: |
-          git clone --depth 1 --branch ${{ inputs.iam_web_ref }} \
-            https://oauth2:${{ secrets.GITCODE_TOKEN }}@gitcode.com/yi-nology/iam-web.git iam-web
+          set -euo pipefail
+          git clone --depth 1 --branch "$SOURCE_REF" \
+            "https://oauth2:${GITCODE_TOKEN}@gitcode.com/yi-nology/iam-web.git" iam-web
+          echo "sha=$(git -C iam-web rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -96,21 +136,23 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/iam-web
           tags: |
-            type=raw,value=${{ inputs.iam_web_ref }}
-            type=sha,prefix=
-            type=raw,value=latest,enable=${{ inputs.iam_web_ref == 'main' }}
+            type=raw,value=${{ needs.prepare.outputs.release_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.source=https://gitcode.com/yi-nology/iam-web
 
-      - name: Build & Push iam-web
+      - name: Build and push iam-web
         uses: docker/build-push-action@v6
         with:
           context: iam-web
+          platforms: linux/amd64
           push: ${{ inputs.push_images }}
           load: ${{ inputs.push_images == false }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ inputs.iam_web_ref }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            GIT_COMMIT=${{ steps.source.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

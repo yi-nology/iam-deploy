@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy IAM"
+  short_description: "Build IAM images, transfer them locally, and deploy to 215."
+  default_prompt: "Use $deploy-iam to build IAM images through GitHub Actions, transfer them from this machine, and deploy them to the 215 environment."
