@@ -119,7 +119,7 @@ jobs:
           for svc in iam-server iam-web; do
             image="$REGISTRY/$IMAGE_PREFIX/${svc}:${RELEASE_TAG}"
             echo "Inspecting $image"
-            sudo -n -E docker manifest inspect "$image" >/dev/null \
+            sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker manifest inspect "$image" >/dev/null \
               || { echo "ERROR: manifest not found for $image"; exit 1; }
           done
 
@@ -131,8 +131,8 @@ jobs:
           set -euo pipefail
           for svc in iam-server iam-web; do
             image="$REGISTRY/$IMAGE_PREFIX/${svc}:${RELEASE_TAG}"
-            sudo -n -E docker pull --platform linux/amd64 "$image"
-            platform="$(sudo -n -E docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")"
+            sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker pull --platform linux/amd64 "$image"
+            platform="$(sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")"
             [[ "$platform" == "linux/amd64" ]] \
               || { echo "ERROR: $image resolved to $platform, expected linux/amd64"; exit 1; }
           done
@@ -146,8 +146,8 @@ jobs:
           dir="/opt/iam"
           [[ -f "$dir/docker-compose.yml" ]] || { echo "ERROR: missing $dir/docker-compose.yml"; exit 1; }
           [[ -f "$dir/.env" ]] || { echo "ERROR: missing $dir/.env"; exit 1; }
-          server_id="$(sudo -n -E docker compose -f "$dir/docker-compose.yml" ps -q iam-server | head -n 1)"
-          web_id="$(sudo -n -E docker compose -f "$dir/docker-compose.yml" ps -q iam-web | head -n 1)"
+          server_id="$(sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker compose -f "$dir/docker-compose.yml" ps -q iam-server | head -n 1)"
+          web_id="$(sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker compose -f "$dir/docker-compose.yml" ps -q iam-web | head -n 1)"
           [[ -n "$server_id" ]] || { echo "ERROR: iam-server is not running, refusing to deploy without a rollback target"; exit 1; }
           [[ -n "$web_id" ]] || { echo "ERROR: iam-web is not running, refusing to deploy without a rollback target"; exit 1; }
           echo "Preflight OK: iam-server=$server_id iam-web=$web_id"
@@ -203,7 +203,7 @@ jobs:
           set -euo pipefail
           dir="/opt/iam"
           compose() {
-            sudo -n -E docker compose \
+            sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker compose \
               --env-file "$dir/.env" \
               --env-file "$dir/.iam-images.env" \
               -f "$dir/docker-compose.yml" \
@@ -229,7 +229,7 @@ jobs:
           ts="$(date -u +%Y%m%d-%H%M%S)"
 
           compose() {
-            sudo -n -E docker compose \
+            sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker compose \
               --env-file "$dir/.env" \
               --env-file "$dir/.iam-images.env" \
               -f "$dir/docker-compose.yml" \
@@ -241,7 +241,7 @@ jobs:
             local server_id status binding web_port
             server_id="$(compose ps -q iam-server)"
             [[ -n "$server_id" ]] || return 1
-            status="$(sudo -n -E docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$server_id")"
+            status="$(sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$server_id")"
             [[ "$status" == healthy ]] || return 1
             sudo -n curl -fsS --max-time 5 http://127.0.0.1:8000/health >/dev/null || return 1
             binding="$(compose port iam-web 80 | head -n 1)"
@@ -316,7 +316,7 @@ jobs:
           fi
           echo "Rolling back to $prev_env"
           cp "$prev_env" "$dir/.iam-images.env"
-          sudo -n -E docker compose \
+          sudo -n env "DOCKER_CONFIG=$DOCKER_CONFIG" docker compose \
             --env-file "$dir/.env" \
             --env-file "$dir/.iam-images.env" \
             -f "$dir/docker-compose.yml" \
