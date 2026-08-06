@@ -93,9 +93,22 @@ jobs:
           # Docker resolves the CA directory differently across CLI/daemon versions;
           # mirror both the host-only and host:port forms for ghcr.io.
           mkdir -p "$DOCKER_CONFIG/certs.d/ghcr.io" "$DOCKER_CONFIG/certs.d/ghcr.io:443"
-          if [[ -f /etc/docker/certs.d/ghcr.io/ca.crt ]]; then
-            sudo -n cp /etc/docker/certs.d/ghcr.io/ca.crt "$DOCKER_CONFIG/certs.d/ghcr.io:443/ca.crt"
-            sudo -n cp /etc/docker/certs.d/ghcr.io/ca.crt "$DOCKER_CONFIG/certs.d/ghcr.io/ca.crt"
+          ca_source=""
+          for candidate in \
+            /etc/docker/certs.d/ghcr.io/ca.crt \
+            /etc/docker/certs.d/ghcr.io:443/ca.crt; do
+            if [[ -f "$candidate" ]]; then
+              ca_source="$candidate"
+              break
+            fi
+          done
+          if [[ -n "$ca_source" ]]; then
+            sudo -n cp "$ca_source" "$DOCKER_CONFIG/certs.d/ghcr.io:443/ca.crt"
+            sudo -n cp "$ca_source" "$DOCKER_CONFIG/certs.d/ghcr.io/ca.crt"
+            echo "Mirrored GHCR CA from $ca_source"
+          else
+            echo "WARNING: no GHCR CA found under /etc/docker/certs.d" >&2
+            find /etc/docker/certs.d -maxdepth 3 -type f -print 2>/dev/null || true
           fi
 
           # Write the credentials blob directly rather than calling `docker login`, which fails
