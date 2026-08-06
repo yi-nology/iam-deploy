@@ -79,14 +79,33 @@ jobs:
           set -euo pipefail
           : "${GHCR_TOKEN:?GHCR_TOKEN secret is required}"
           : "${GHCR_USERNAME:?GHCR_USERNAME secret is required}"
+
           # Use an isolated DOCKER_CONFIG so we never leak the token into the runner's persistent home.
           docker_cfg="$(mktemp -d)"
           export DOCKER_CONFIG="$docker_cfg"
-          echo "$GHCR_TOKEN" | sudo -n docker login "$REGISTRY" \
-            --username "$GHCR_USERNAME" --password-stdin
+
+          # The 215 self-hosted runner sits behind a proxy that re-signs ghcr.io with a private CA
+          # (/etc/docker/certs.d/ghcr.io/ca.crt on the host). When we point DOCKER_CONFIG at a
+          # fresh tempdir, the docker CLI no longer finds that cert in `$DOCKER_CONFIG/certs.d/`
+          # and the registry handshake fails with `x509: certificate signed by unknown authority`.
+          # Mirror the cert into the tempdir so any docker CLI invocation that talks to ghcr.io
+          # from this job uses the same trust chain that works on the host.
+          mkdir -p "$DOCKER_CONFIG/certs.d/ghcr.io:443"
+          if [[ -f /etc/docker/certs.d/ghcr.io/ca.crt ]]; then
+            sudo -n cp /etc/docker/certs.d/ghcr.io/ca.crt "$DOCKER_CONFIG/certs.d/ghcr.io:443/ca.crt"
+          fi
+
+          # Write the credentials blob directly rather than calling `docker login`, which fails
+          # the same TLS handshake for the same reason. Public iam-server / iam-web packages
+          # pull without auth, but writing the blob keeps the setup ready for private packages
+          # and matches what `docker login` would persist.
+          b64="$(printf '%s:%s' "$GHCR_USERNAME" "$GHCR_TOKEN" | base64 | tr -d '\n')"
+          printf '{"auths":{"%s":{"auth":"%s"}}}' "$REGISTRY" "$b64" \
+            | sudo -n tee "$DOCKER_CONFIG/config.json" >/dev/null
+          sudo -n chmod 600 "$DOCKER_CONFIG/config.json"
+
           echo "DOCKER_CONFIG=$docker_cfg" >> "$GITHUB_ENV"
-          # Echo a redacted summary to step output, never the token itself.
-          echo "Logged in to $REGISTRY as $GHCR_USERNAME"
+          echo "Wrote GHCR credentials + cert mirror to ephemeral DOCKER_CONFIG"
 
       - name: Verify both images exist on GHCR
         shell: bash
