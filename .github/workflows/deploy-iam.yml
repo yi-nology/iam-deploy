@@ -90,9 +90,12 @@ jobs:
           # and the registry handshake fails with `x509: certificate signed by unknown authority`.
           # Mirror the cert into the tempdir so any docker CLI invocation that talks to ghcr.io
           # from this job uses the same trust chain that works on the host.
-          mkdir -p "$DOCKER_CONFIG/certs.d/ghcr.io:443"
+          # Docker resolves the CA directory differently across CLI/daemon versions;
+          # mirror both the host-only and host:port forms for ghcr.io.
+          mkdir -p "$DOCKER_CONFIG/certs.d/ghcr.io" "$DOCKER_CONFIG/certs.d/ghcr.io:443"
           if [[ -f /etc/docker/certs.d/ghcr.io/ca.crt ]]; then
             sudo -n cp /etc/docker/certs.d/ghcr.io/ca.crt "$DOCKER_CONFIG/certs.d/ghcr.io:443/ca.crt"
+            sudo -n cp /etc/docker/certs.d/ghcr.io/ca.crt "$DOCKER_CONFIG/certs.d/ghcr.io/ca.crt"
           fi
 
           # Write the credentials blob directly rather than calling `docker login`, which fails
