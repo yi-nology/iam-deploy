@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Build IAM in GitHub Actions, then transfer the resulting images through this machine.
+#
+# ⚠️  LEGACY: prefer `.github/workflows/deploy-iam.yml` for production deploys.
+#     This script is kept for cases where the 215 self-hosted runner is unavailable
+#     and a workstation must perform the build → image transfer manually.
+#     See README.md "旧式部署" and AGENTS.md for the recommended path.
 
 set -Eeuo pipefail
 
